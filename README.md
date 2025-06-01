@@ -9,7 +9,7 @@
 
     ─「 ᴅᴇᴩʟᴏʏ ᴏɴ ᴋᴏʏᴇʙ 」─
 </h3>
-<p align="center"><a href="https://app.koyeb.com/deploy?type=git&repository=github.com/bulanbintang69/aduhduh&branch=master&name=master">
+<p align="center"><a href="https://app.koyeb.com/deploy?type=git&repository=github.com/AlekBaikHati/V342-SOCX-M&branch=master&name=master">
   <img src="https://www.koyeb.com/static/images/deploy/button.svg" alt="Deploy On Koyeb">
 </a></p>
 <h3 align="center">
