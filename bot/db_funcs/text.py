@@ -122,3 +122,44 @@ async def get_sponsor_enabled() -> bool:
 async def set_sponsor_enabled(value: bool) -> None:
     await database.clear_value(int(BOT_ID), "SPONSOR_ENABLED")
     await database.add_value(int(BOT_ID), "SPONSOR_ENABLED", value)
+
+async def get_custom_caption_text() -> str:
+    doc = await database.get_doc(int(BOT_ID))
+    return doc.get("CUSTOM_CAPTION_TEXT", [""])[0] if doc else ""
+
+async def set_custom_caption_text(value: str) -> None:
+    await database.clear_value(int(BOT_ID), "CUSTOM_CAPTION_TEXT")
+    await database.add_value(int(BOT_ID), "CUSTOM_CAPTION_TEXT", value)
+
+async def del_custom_caption_text() -> None:
+    await database.clear_value(int(BOT_ID), "CUSTOM_CAPTION_TEXT")
+
+async def get_custom_caption_enabled() -> bool:
+    doc = await database.get_doc(int(BOT_ID))
+    return doc.get("CUSTOM_CAPTION_ENABLED", [False])[0] if doc else False
+
+async def set_custom_caption_enabled(value: bool) -> None:
+    await database.clear_value(int(BOT_ID), "CUSTOM_CAPTION_ENABLED")
+    await database.add_value(int(BOT_ID), "CUSTOM_CAPTION_ENABLED", value)
+
+# --- Start Photo ---
+async def add_start_photo_msg(value: str) -> None:
+    await database.add_value(int(BOT_ID), "START_PHOTO", value)
+
+async def del_start_photo_msg() -> None:
+    await database.clear_value(int(BOT_ID), "START_PHOTO")
+
+async def get_start_photo_msg() -> str:
+    doc = await database.get_doc(int(BOT_ID))
+    return doc.get("START_PHOTO", [""])[0] if doc else ""
+
+# --- Force Photo ---
+async def add_force_photo_msg(value: str) -> None:
+    await database.add_value(int(BOT_ID), "FORCE_PHOTO", value)
+
+async def del_force_photo_msg() -> None:
+    await database.clear_value(int(BOT_ID), "FORCE_PHOTO")
+
+async def get_force_photo_msg() -> str:
+    doc = await database.get_doc(int(BOT_ID))
+    return doc.get("FORCE_PHOTO", [""])[0] if doc else ""

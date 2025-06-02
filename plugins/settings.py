@@ -18,7 +18,14 @@ from bot import (
     update_protect_content,
     update_start_text_msg,
 )
-from bot.db_funcs.text import get_sponsor_enabled, set_sponsor_enabled
+from bot.db_funcs.text import (
+    get_sponsor_enabled, set_sponsor_enabled,
+    get_custom_caption_text, set_custom_caption_text, del_custom_caption_text,
+    get_custom_caption_enabled, set_custom_caption_enabled,
+    add_start_photo_msg, del_start_photo_msg,
+    add_force_photo_msg, del_force_photo_msg,
+    get_start_photo_msg, get_force_photo_msg
+)
 from bot.base import database
 
 
@@ -27,9 +34,10 @@ from bot.base import database
 async def cancel_handler_query(client: Client, query: CallbackQuery) -> None:
     chat_id, user_id = query.message.chat.id, query.from_user.id
     await client.stop_listening(chat_id=chat_id, user_id=user_id)
+    await query.message.edit_text("<b>Process has been cancelled!</b>")
 
 
-@Client.on_callback_query(filters.regex(r"\bsettings\b"))
+@Client.on_callback_query(filters.regex(r"settings"))
 @authorized_users_only
 async def settings_handler_query(_, query: CallbackQuery) -> None:
     await query.message.edit_text(
@@ -37,7 +45,7 @@ async def settings_handler_query(_, query: CallbackQuery) -> None:
     )
 
 
-@Client.on_callback_query(filters.regex(r"\bclose\b"))
+@Client.on_callback_query(filters.regex(r"close\b"))
 @authorized_users_only
 async def close_handler_query(_, query: CallbackQuery) -> None:
     try:
@@ -49,10 +57,11 @@ async def close_handler_query(_, query: CallbackQuery) -> None:
 
 
 @Client.on_callback_query(
-    filters.regex(r"menu (generate|start|force|protect|admins|fsubs)")
+    filters.regex(r"menu (generate|protect|admins|fsubs)")
 )
 @authorized_users_only
-async def menu_handler_query(_, query: CallbackQuery) -> None:
+async def menu_handler_query(client, query: CallbackQuery) -> None:
+    query_data = query.data.split()[1]
     def format_list_items(item_title: str, list_items: list) -> str:
         formatted_items = (
             "".join(
@@ -63,11 +72,8 @@ async def menu_handler_query(_, query: CallbackQuery) -> None:
         )
         return f"{item_title}:\n{formatted_items}"
 
-    query_data = query.data.split()[1]
     response_texts = {
         "generate": f"Currently Generate Status is <b>{helper_handlers.generate_status}</b>",
-        "start": f"<b>Start Text:</b>\n  {helper_handlers.start_text}",
-        "force": f"<b>Force Text:</b>\n  {helper_handlers.force_text}",
         "protect": f"Currently Protect Content is <b>{helper_handlers.protect_content}</b>",
         "admins": format_list_items(
             "<b>List Admins</b>",
@@ -107,58 +113,167 @@ async def change_handler_query(_, query: CallbackQuery) -> None:
 
     await query.message.edit_text(text, reply_markup=ikb(buttons))
 
-
-@Client.on_callback_query(filters.regex(r"update (start|force)"))
+@Client.on_callback_query(filters.regex(r"update start_photo"))
 @authorized_users_only
-async def set_handler_query(client: Client, query: CallbackQuery) -> None:
-    query_data = query.data.split()[1]
+async def update_start_photo_handler(client: Client, query: CallbackQuery) -> None:
     await query.message.edit_text(
-        f"Send a new {query_data.capitalize()} Text Message\n\n<b>Timeout:</b> 45s",
+        "Kirim link foto (URL gambar, bukan text biasa) untuk Set Photo Start!\n\n<b>Timeout:</b> 45s",
         reply_markup=ikb(helper_buttons.Cancel),
     )
-
-    buttons = (
-        ikb(helper_buttons.Start_)
-        if query_data == "start"
-        else ikb(helper_buttons.Force_)
-    )
     chat_id, user_id = query.message.chat.id, query.from_user.id
-
+    await client.stop_listening(chat_id=chat_id, user_id=user_id)
     try:
         listening = await client.listen(chat_id=chat_id, user_id=user_id, timeout=45)
-        new_text = listening.text
+        user_input = listening.text
         await listening.delete()
     except errors.ListenerStopped:
+        await menu_start_handler_query(client, query)
+        return
+    except errors.ListenerTimeout:
+        buttons = await helper_buttons.get_start_buttons()
         await query.message.edit_text(
-            "<b>Process has been cancelled!</b>", reply_markup=buttons
+            "<b>Time limit exceeded! Proses Set Photo Start dibatalkan.</b>", reply_markup=ikb(buttons)
         )
+        return
+    except Exception:
+        await menu_start_handler_query(client, query)
+        return
+    if not user_input or not (user_input.startswith("http://") or user_input.startswith("https://")):
+        buttons = await helper_buttons.get_start_buttons()
+        await query.message.edit_text("<b>Link tidak valid! Harus berupa URL gambar (http/https) untuk Set Photo Start.</b>", reply_markup=ikb(buttons))
+        return
+    from bot.db_funcs.text import add_start_photo_msg
+    await add_start_photo_msg(user_input)
+    buttons = await helper_buttons.get_start_buttons()
+    await query.message.edit_text(f"<b>Set Photo Start berhasil diubah:</b>\n{user_input}", reply_markup=ikb([[('« Back', 'menu start')]]))
+
+@Client.on_callback_query(filters.regex(r"update force_photo"))
+@authorized_users_only
+async def update_force_photo_handler(client: Client, query: CallbackQuery) -> None:
+    await query.message.edit_text(
+        "Kirim link foto (URL gambar, bukan text biasa) untuk Set Photo Force!\n\n<b>Timeout:</b> 45s",
+        reply_markup=ikb(helper_buttons.Cancel),
+    )
+    chat_id, user_id = query.message.chat.id, query.from_user.id
+    await client.stop_listening(chat_id=chat_id, user_id=user_id)
+    try:
+        listening = await client.listen(chat_id=chat_id, user_id=user_id, timeout=45)
+        user_input = listening.text
+        await listening.delete()
+    except errors.ListenerStopped:
+        await menu_force_handler_query(client, query)
+        return
+    except errors.ListenerTimeout:
+        buttons = await helper_buttons.get_force_buttons()
+        await query.message.edit_text(
+            "<b>Time limit exceeded! Proses Set Photo Force dibatalkan.</b>", reply_markup=ikb(buttons)
+        )
+        return
+    except Exception:
+        await menu_force_handler_query(client, query)
+        return
+    if not user_input or not (user_input.startswith("http://") or user_input.startswith("https://")):
+        buttons = await helper_buttons.get_force_buttons()
+        await query.message.edit_text("<b>Link tidak valid! Harus berupa URL gambar (http/https) untuk Set Photo Force.</b>", reply_markup=ikb(buttons))
+        return
+    from bot.db_funcs.text import add_force_photo_msg
+    await add_force_photo_msg(user_input)
+    buttons = await helper_buttons.get_force_buttons()
+    await query.message.edit_text(f"<b>Set Photo Force berhasil diubah:</b>\n{user_input}", reply_markup=ikb([[('« Back', 'menu force')]]))
+
+@Client.on_callback_query(filters.regex(r"update (start|force)$"))
+@authorized_users_only
+async def set_text_handler_query(client: Client, query: CallbackQuery) -> None:
+    query_data = query.data.split()[1]  # 'start' atau 'force'
+    label_text = "Start" if query_data == "start" else "Force"
+    await query.message.edit_text(
+        f"Kirim pesan untuk Set Text {label_text}!\n\n<b>Timeout:</b> 45s",
+        reply_markup=ikb(helper_buttons.Cancel),
+    )
+    back_buttons = await helper_buttons.get_start_buttons() if query_data == "start" else await helper_buttons.get_force_buttons()
+    chat_id, user_id = query.message.chat.id, query.from_user.id
+    await client.stop_listening(chat_id=chat_id, user_id=user_id)
+    try:
+        listening = await client.listen(chat_id=chat_id, user_id=user_id, timeout=45)
+        user_input = listening.text
+        await listening.delete()
+    except errors.ListenerStopped:
+        if query_data == "start":
+            await menu_start_handler_query(client, query)
+        else:
+            await menu_force_handler_query(client, query)
         return
     except errors.ListenerTimeout:
         await query.message.edit_text(
-            "<b>Time limit exceeded! Process has been cancelled.</b>",
-            reply_markup=buttons,
+            f"<b>Time limit exceeded! Proses Set Text {label_text} dibatalkan.</b>", reply_markup=ikb(back_buttons)
         )
         return
-
-    if not new_text:
-        await query.message.edit_text(
-            "<b>Invalid! Just send a text message.</b>", reply_markup=buttons
-        )
-    else:
+    except Exception:
         if query_data == "start":
-            await update_start_text_msg(new_text)
-            await helper_handlers.start_text_init()
-            logger.info("Start Text: Customized")
+            await menu_start_handler_query(client, query)
         else:
-            await update_force_text_msg(new_text)
-            await helper_handlers.force_text_init()
-            logger.info("Force Text: Customized")
+            await menu_force_handler_query(client, query)
+        return
+    if not user_input:
+        await query.message.edit_text(f"<b>Invalid! Kirim pesan text untuk Set Text {label_text}.</b>", reply_markup=ikb(back_buttons))
+        return
+    if query_data == "start":
+        await update_start_text_msg(user_input)
+        await helper_handlers.start_text_init()
+        logger.info("Start Text: Customized")
+    else:
+        await update_force_text_msg(user_input)
+        await helper_handlers.force_text_init()
+        logger.info("Force Text: Customized")
+    await query.message.edit_text(
+        f"<b>Set Text {label_text} berhasil diubah:</b>\n{user_input}",
+        reply_markup=ikb([[('« Back', 'menu start')]]),
+    )
 
-        await query.message.edit_text(
-            f"New! {query_data.capitalize()} Text Message:\n  {new_text}",
-            reply_markup=buttons,
-        )
+@Client.on_callback_query(filters.regex(r"delete start_photo"))
+@authorized_users_only
+async def delete_start_photo_handler(_, query: CallbackQuery):
+    from bot.db_funcs.text import del_start_photo_msg
+    await del_start_photo_msg()
+    await query.message.edit_text("<b>Start Photo berhasil dihapus!</b>", reply_markup=ikb(helper_buttons.Start_))
 
+
+@Client.on_callback_query(filters.regex(r"delete force_photo"))
+@authorized_users_only
+async def delete_force_photo_handler(_, query: CallbackQuery):
+    from bot.db_funcs.text import del_force_photo_msg
+    await del_force_photo_msg()
+    await query.message.edit_text("<b>Force Photo berhasil dihapus!</b>", reply_markup=ikb(helper_buttons.Force_))
+
+
+@Client.on_callback_query(filters.regex(r"menu start"))
+@authorized_users_only
+async def menu_start_handler_query(_, query: CallbackQuery) -> None:
+    from bot.db_funcs.text import get_start_photo_msg
+    photo = await get_start_photo_msg()
+    text = f"<b>Start Text:</b>\n  {helper_handlers.start_text}\n\n"
+    if photo:
+        text += f"<b>Start Photo:</b> <code>{photo}</code>"
+    else:
+        text += "<b>Start Photo:</b> <i>Belum disetting</i>"
+    buttons = await helper_buttons.get_start_buttons()
+    await query.message.edit_text(text, reply_markup=ikb(buttons))
+
+
+@Client.on_callback_query(filters.regex(r"menu force"))
+@authorized_users_only
+async def menu_force_handler_query(_, query: CallbackQuery) -> None:
+    from bot.db_funcs.text import get_force_photo_msg
+    photo = await get_force_photo_msg()
+    text = f"<b>Force Text:</b>\n  {helper_handlers.force_text}\n\n"
+    if photo:
+        text += f"<b>Force Photo:</b> <code>{photo}</code>"
+    else:
+        text += "<b>Force Photo:</b> <i>Belum disetting</i>"
+    buttons = await helper_buttons.get_force_buttons()
+    await query.message.edit_text(text, reply_markup=ikb(buttons))
+
+#################
 
 @Client.on_callback_query(filters.regex(r"add (admin|f-sub)"))
 @authorized_users_only
@@ -306,14 +421,27 @@ async def del_handler_query(client: Client, query: CallbackQuery) -> None:
 @Client.on_callback_query(filters.regex(r"menu sponsor"))
 @authorized_users_only
 async def menu_sponsor_handler_query(_, query: CallbackQuery) -> None:
-    from bot.db_funcs.text import get_sponsor_enabled
     sponsor_enabled = await get_sponsor_enabled()
-    status = "<b>Status Sponsor:</b> 🟢 <code>Aktif</code>" if sponsor_enabled else "<b>Status Sponsor:</b> 🔴 <code>Nonaktif</code>"
-    text = (
-        f"<b>📝 Sponsor Text:</b>\n{helper_handlers.sponsor_text or '<i>Belum diatur</i>'}\n\n"
-        f"<b>🖼️ Sponsor Photo:</b>\n{helper_handlers.sponsor_photo or '<i>Belum diatur</i>'}\n\n"
-        f"{status}"
-    )
+    text = f"""
+<b>📝 Sponsor Text</b>
+{helper_handlers.sponsor_text or '<i>Belum diatur</i>'}
+
+<b>🖼️ Sponsor Photo</b>
+{helper_handlers.sponsor_photo or '<i>Belum diatur</i>'}
+
+<b>Status Sponsor:</b> {'🟢 <code>Aktif</code>' if sponsor_enabled else '🔴 <code>Nonaktif</code>'}
+
+<b>Format Teks:</b>
+- Mendukung <b>HTML</b> (misal: &lt;b&gt;tebal&lt;/b&gt;, &lt;i&gt;miring&lt;/i&gt;, &lt;a href="url"&gt;link&lt;/a&gt;)
+- Contoh: <code>&lt;b&gt;Gabung Channel Sponsor:&lt;/b&gt; &lt;a href="https://t.me/sponsor_channel"&gt;Klik di sini&lt;/a&gt;</code>
+
+<b>Contoh Penggunaan:</b>
+- Hanya text: <code>&lt;b&gt;Download file premium di sini:&lt;/b&gt; &lt;a href="https://t.me/username"&gt;Klik di sini&lt;/a&gt;</code>
+- Hanya photo: <i>Kirim link gambar saja, tanpa text</i>
+- Photo + text: <i>Kirim link gambar dan isi text sponsor (caption) dengan HTML)</i>
+
+<b>Parse Mode:</b> <code>HTML</code>
+"""
     await query.message.edit_text(
         text,
         reply_markup=ikb(helper_buttons.get_sponsor_buttons(sponsor_enabled)),
@@ -418,12 +546,26 @@ async def toggle_sponsor_handler(_, query: CallbackQuery):
     await helper_handlers.sponsor_text_init()
     await helper_handlers.sponsor_photo_init()
     sponsor_enabled = await get_sponsor_enabled()
-    status = "<b>Status Sponsor:</b> 🟢 <code>Aktif</code>" if sponsor_enabled else "<b>Status Sponsor:</b> 🔴 <code>Nonaktif</code>"
-    text = (
-        f"<b>📝 Sponsor Text:</b>\n{helper_handlers.sponsor_text or '<i>Belum diatur</i>'}\n\n"
-        f"<b>🖼️ Sponsor Photo:</b>\n{helper_handlers.sponsor_photo or '<i>Belum diatur</i>'}\n\n"
-        f"{status}"
-    )
+    text = f"""
+<b>📝 Sponsor Text</b>
+{helper_handlers.sponsor_text or '<i>Belum diatur</i>'}
+
+<b>🖼️ Sponsor Photo</b>
+{helper_handlers.sponsor_photo or '<i>Belum diatur</i>'}
+
+<b>Status Sponsor:</b> {'🟢 <code>Aktif</code>' if sponsor_enabled else '🔴 <code>Nonaktif</code>'}
+
+<b>Format Teks:</b>
+- Mendukung <b>HTML</b> (misal: &lt;b&gt;tebal&lt;/b&gt;, &lt;i&gt;miring&lt;/i&gt;, &lt;a href="url"&gt;link&lt;/a&gt;)
+- Contoh: <code>&lt;b&gt;Gabung Channel Sponsor:&lt;/b&gt; &lt;a href="https://t.me/sponsor_channel"&gt;Klik di sini&lt;/a&gt;</code>
+
+<b>Contoh Penggunaan:</b>
+- Hanya text: <code>&lt;b&gt;Download file premium di sini:&lt;/b&gt; &lt;a href="https://t.me/username"&gt;Klik di sini&lt;/a&gt;</code>
+- Hanya photo: <i>Kirim link gambar saja, tanpa text</i>
+- Photo + text: <i>Kirim link gambar dan isi text sponsor (caption) dengan HTML)</i>
+
+<b>Parse Mode:</b> <code>HTML</code>
+"""
     await query.message.edit_text(
         text,
         reply_markup=ikb(helper_buttons.get_sponsor_buttons(sponsor_enabled)),
@@ -479,3 +621,74 @@ async def update_dbchannel_handler(client: Client, query: CallbackQuery):
 async def reset_dbchannel_handler(_, query: CallbackQuery):
     await database.clear_value(int(config.BOT_TOKEN.split(":")[0]), "DATABASE_CHAT_ID_OVERRIDE")
     await query.message.edit_text("<b>DB Channel direset ke default dari config!</b>", reply_markup=ikb(helper_buttons.DBChannel_))
+
+
+@Client.on_callback_query(filters.regex(r"menu custom_caption"))
+@authorized_users_only
+async def menu_custom_caption_handler(_, query: CallbackQuery):
+    enabled = await get_custom_caption_enabled()
+    template = await get_custom_caption_text()
+    status = "🟢 Aktif" if enabled else "🔴 Nonaktif"
+    text = f"""
+<b>📝 Custom Caption</b>
+Status: <b>{status}</b>
+
+Template:
+<code>{template or 'Belum diatur'}</code>
+
+<b>Placeholder yang bisa digunakan:</b>
+- <code>{{original_caption}}</code> = Caption asli file (jika ada)
+- <code>{{link_file}}</code> = Link hasil generate file
+
+<b>Contoh Penggunaan:</b>
+- Hanya link: <code>{{link_file}}</code>
+- HTML: <code>&lt;a href="{{link_file}}"&gt;Download di sini&lt;/a&gt;</code>
+- Kombinasi: <code>&lt;b&gt;File:&lt;/b&gt; {{original_caption}} &lt;a href="{{link_file}}"&gt;[Link]&lt;/a&gt;</code>
+
+<b>Format Teks:</b>
+- Mendukung <b>HTML</b> (misal: &lt;b&gt;tebal&lt;/b&gt;, &lt;i&gt;miring&lt;/i&gt;, &lt;a href="url"&gt;link&lt;/a&gt;)
+- Contoh: <code>&lt;b&gt;File dari bot:&lt;/b&gt; {{original_caption}} &lt;a href="{{link_file}}"&gt;[Link]&lt;/a&gt;</code>
+
+<b>Parse Mode:</b> <code>HTML</code>
+"""
+    await query.message.edit_text(
+        text,
+        reply_markup=ikb(helper_buttons.CustomCaption),
+    )
+
+
+@Client.on_callback_query(filters.regex(r"update custom_caption"))
+@authorized_users_only
+async def update_custom_caption_handler(client: Client, query: CallbackQuery):
+    await query.message.edit_text(
+        "Kirim template caption baru!\n\nGunakan <code>{original_caption}</code> untuk caption asli.",
+        reply_markup=ikb(helper_buttons.CustomCaption_),
+    )
+    chat_id, user_id = query.message.chat.id, query.from_user.id
+    try:
+        listening = await client.listen(chat_id=chat_id, user_id=user_id, timeout=45)
+        new_caption = listening.text
+        await listening.delete()
+    except Exception:
+        await query.message.edit_text("<b>Proses dibatalkan!</b>", reply_markup=ikb(helper_buttons.CustomCaption_))
+        return
+    await set_custom_caption_text(new_caption)
+    await query.message.edit_text("<b>Custom caption berhasil diubah!</b>", reply_markup=ikb(helper_buttons.CustomCaption_))
+
+
+@Client.on_callback_query(filters.regex(r"delete custom_caption"))
+@authorized_users_only
+async def delete_custom_caption_handler(_, query: CallbackQuery):
+    await del_custom_caption_text()
+    await query.message.edit_text("<b>Custom caption berhasil dihapus!</b>", reply_markup=ikb(helper_buttons.CustomCaption_))
+
+
+@Client.on_callback_query(filters.regex(r"toggle custom_caption"))
+@authorized_users_only
+async def toggle_custom_caption_handler(_, query: CallbackQuery):
+    enabled = await get_custom_caption_enabled()
+    await set_custom_caption_enabled(not enabled)
+    # Langsung refresh menu custom caption tanpa pesan konfirmasi
+    await menu_custom_caption_handler(_, query)
+
+

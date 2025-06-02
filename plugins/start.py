@@ -11,7 +11,7 @@ from bot import (
     helper_handlers,
     join_buttons,
 )
-from bot.db_funcs.text import get_sponsor_enabled
+from bot.db_funcs.text import get_sponsor_enabled, get_start_photo_msg, get_force_photo_msg
 from bot.utils import get_active_db_channel
 
 
@@ -27,13 +27,35 @@ async def start_handler(client: Client, message: Message) -> None:
     start_text = format_text_message(helper_handlers.start_text, user)
     user_buttons = await join_buttons(client, message, user.id)
 
+    # Ambil photo start dan force
+    start_photo = await get_start_photo_msg()
+    force_photo = await get_force_photo_msg()
+
     if len(message.command) == 1:
         buttons = admin_buttons() if user.id in helper_handlers.admins else user_buttons
-        await message.reply_text(start_text, quote=True, reply_markup=buttons)
+        if start_photo:
+            await client.send_photo(
+                chat_id=user.id,
+                photo=start_photo,
+                caption=start_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=buttons
+            )
+        else:
+            await message.reply_text(start_text, quote=True, reply_markup=buttons)
     else:
         force_text = format_text_message(helper_handlers.force_text, user)
         if await helper_handlers.user_is_not_join(user.id):
-            await message.reply_text(force_text, quote=True, reply_markup=user_buttons)
+            if force_photo:
+                await client.send_photo(
+                    chat_id=user.id,
+                    photo=force_photo,
+                    caption=force_text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=user_buttons
+                )
+            else:
+                await message.reply_text(force_text, quote=True, reply_markup=user_buttons)
             return
 
         try:

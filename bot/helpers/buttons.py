@@ -90,6 +90,7 @@ class HelperButtons:
         [("Admins", "menu admins"), ("F-Subs", "menu fsubs")],
         [("Sponsor", "menu sponsor")],
         [("🗄️ DB Channel", "menu dbchannel")],
+        [("📝 Custom Caption", "menu custom_caption")],
         [("Close", "close")],
     ]
     Cancel: List[List[Tuple[str, str]]] = [[("Cancel", "cancel")]]
@@ -97,13 +98,27 @@ class HelperButtons:
         [("« Back", "settings"), ("Change", "change generate")]
     ]
     Generate_: List[List[Tuple[str, str]]] = [[("« Back", "menu generate")]]
-    Start: List[List[Tuple[str, str]]] = [
-        [("« Back", "settings"), ("Set", "update start")]
-    ]
+    @staticmethod
+    async def get_start_buttons() -> List[List[Tuple[str, str]]]:
+        from bot.db_funcs.text import get_start_photo_msg
+        photo = await get_start_photo_msg()
+        buttons = [[("Set Text Start", "update start")], [("Set Photo Start", "update start_photo")]]
+        if photo:
+            buttons.append([("Del Photo Start", "delete start_photo")])
+        buttons.append([("Back", "settings")])
+        return buttons
+
+    @staticmethod
+    async def get_force_buttons() -> List[List[Tuple[str, str]]]:
+        from bot.db_funcs.text import get_force_photo_msg
+        photo = await get_force_photo_msg()
+        buttons = [[("Set Text Force", "update force")], [("Set Photo Force", "update force_photo")]]
+        if photo:
+            buttons.append([("Del Photo Force", "delete force_photo")])
+        buttons.append([("Back", "settings")])
+        return buttons
+
     Start_: List[List[Tuple[str, str]]] = [[("« Back", "menu start")]]
-    Force: List[List[Tuple[str, str]]] = [
-        [("« Back", "settings"), ("Set", "update force")]
-    ]
     Force_: List[List[Tuple[str, str]]] = [[("« Back", "menu force")]]
     Protect: List[List[Tuple[str, str]]] = [
         [("« Back", "settings"), ("Change", "change protect")]
@@ -137,6 +152,13 @@ class HelperButtons:
         [("« Back", "settings")],
     ]
     DBChannel_: List[List[Tuple[str, str]]] = [[("« Back", "menu dbchannel")]]
+
+    CustomCaption: List[List[Tuple[str, str]]] = [
+        [("✏️ Edit Caption", "update custom_caption"), ("🗑️ Hapus Caption", "delete custom_caption")],
+        [("🔄 On/Off Caption", "toggle custom_caption")],
+        [("« Back", "settings")],
+    ]
+    CustomCaption_: List[List[Tuple[str, str]]] = [[("« Back", "menu custom_caption")]]
 
 
 helper_buttons: HelperButtons = HelperButtons()
